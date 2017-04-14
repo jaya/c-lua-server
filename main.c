@@ -14,11 +14,12 @@
 
 #define PORT (8081)
 
-const char *resp;
-
 static int lua_respond(lua_State *L)
 {
-	resp = luaL_checkstring(L, 1);
+	const char *resp = luaL_checkstring(L, 1);
+	lua_pushstring(L, "response");
+	lua_pushstring(L, resp);
+	lua_settable(L, LUA_REGISTRYINDEX);
 	return 0;
 }
 
@@ -35,11 +36,15 @@ void handle_connection(int fd)
 	lua_pushstring(L, buffer);
 	lua_setglobal(L, "request");
 	luaL_dofile(L, "main.lua");
-	lua_close(L);
-	char r[200];
-	sprintf(r, "HTTP 200 OK\nContent-Length: %i\n\n%s\n\n", (int)strlen(resp), resp);
-	write(fd, r, strlen(r));
+	const char *resp;
+	lua_pushstring(L, "response");
+	lua_gettable(L, LUA_REGISTRYINDEX);
+	resp = luaL_checkstring(L, 1);
+	printf("%s\n", resp);
+	sprintf(buffer, "HTTP 200 OK\nContent-Length: %i\n\n%s\n\n", (int)strlen(resp), resp);
+	write(fd, buffer, strlen(buffer));
 	close(fd);
+	lua_close(L);
 }
 
 int main (int argc, const char *argv[])
