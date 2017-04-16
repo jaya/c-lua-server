@@ -14,35 +14,26 @@
 
 #define PORT (8081)
 
-static int lua_respond(lua_State *L)
-{
-	const char *resp = luaL_checkstring(L, 1);
-	lua_pushstring(L, "response");
-	lua_pushstring(L, resp);
-	lua_settable(L, LUA_REGISTRYINDEX);
-	return 0;
-}
-
 void handle_connection(int fd)
 {
-	char buffer[1024];
-	memset(buffer, 0, sizeof(buffer));
+	printf("Handling connection on %d\n", getpid());
+	char buffer[1024] = {0};
+
 	read(fd, buffer, sizeof(buffer));
+
 	lua_State *L;
 	L = luaL_newstate();
 	luaL_openlibs(L);
-	lua_pushcfunction(L, lua_respond);
-	lua_setglobal(L, "respond");
-	lua_pushstring(L, buffer);
-	lua_setglobal(L, "request");
+
 	luaL_dofile(L, "main.lua");
-	const char *resp;
-	lua_pushstring(L, "response");
-	lua_gettable(L, LUA_REGISTRYINDEX);
-	resp = luaL_checkstring(L, 1);
-	printf("%s\n", resp);
-	sprintf(buffer, "HTTP 200 OK\nContent-Length: %i\n\n%s\n\n", (int)strlen(resp), resp);
-	write(fd, buffer, strlen(buffer));
+
+	lua_getglobal(L, "main");
+	lua_pushstring(L, buffer);
+	lua_pcall(L, 1, 1, 0);
+	const char *response = luaL_checkstring(L, -1);
+
+	write(fd, response, strlen(response));
+	shutdown(fd, SHUT_RDWR);
 	close(fd);
 	lua_close(L);
 }
@@ -76,7 +67,9 @@ int main (int argc, const char *argv[])
 			exit(1);
 		}
 		new_socket = accept(sd, (struct sockaddr*) &addr, &addrlen);
-		if (!fork()) {
+		pid_t pid = fork();
+		if (pid == 0) {
+			printf("Forking with pid %d\n", getpid());
 			handle_connection(new_socket);
 		}
 	}

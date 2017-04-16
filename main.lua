@@ -1,3 +1,4 @@
-print("Responding..")
-resource = string.match(request, "GET /(%S+)");
-respond("You asked for " .. resource);
+function main(request)
+	return "You said " .. request
+end
+
